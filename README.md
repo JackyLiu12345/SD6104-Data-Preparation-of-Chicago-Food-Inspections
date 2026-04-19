@@ -50,14 +50,13 @@ Step 5 ── Data structuring
 ├── fd_cleaning.py                 # Step 4: FD-based data cleaning
 ├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
 ├── restaurant_construction.py     # Utility: entity resolution (Union-Find, fuzzy matching, Haversine)
-├── inspection_cleaning.py         # Legacy: inspection-column cleaning (used internally by fd_cleaning.py)
-├── final_cleaning.py              # Legacy: final imputation (used internally by fd_cleaning.py)
-├── Single-column profiling.ipynb  # Exploratory notebook (Step 1)
-├── Association rule mining.ipynb  # Exploratory notebook (Step 2)
-├── FD discovery.ipynb             # Exploratory notebook (Step 3)
-├── INDs&structuring.ipynb         # Exploratory notebook (Step 5)
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
+├── notebooks/                     # Exploratory Jupyter notebooks
+│   ├── Single-column profiling.ipynb
+│   ├── Association rule mining.ipynb
+│   ├── FD discovery.ipynb
+│   └── INDs&structuring.ipynb
 └── output/                        # Generated outputs (git-ignored except .gitkeep)
     ├── profiling_report.csv
     ├── association_rules.csv
