@@ -11,7 +11,7 @@ Cell 0 of the notebook contains the profiling functions
 
 Cell 1 of the notebook contains the data cleaning / enrichment functions
 (clean_data) which handle Facility Type, Location/City/State deletion,
-Zip filtering, License # cleaning, Inspection Type, Risk, Inspection Date
+Zip null cleanup, License # cleaning, Inspection Type, Risk, Inspection Date
 conversion, and Violation Terms extraction.
 """
 
