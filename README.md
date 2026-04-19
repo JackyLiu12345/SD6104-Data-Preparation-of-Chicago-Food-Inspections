@@ -44,12 +44,14 @@ Step 5 ── Data structuring
 ```
 .
 ├── main.py                        # Pipeline orchestrator — run this
-├── profiling.py                   # Step 1: single-column profiling
+├── profiling.py                   # Step 1: single-column profiling (functions from notebook)
 ├── association_rules.py           # Step 2: association rule mining (Apriori)
-├── fd_detection.py                # Step 3: functional dependency detection
-├── fd_cleaning.py                 # Step 4: FD-based data cleaning
+├── fd_detection.py                # Step 3: FD detection (compute_fd_confidence from notebook)
+├── fd_cleaning.py                 # Step 4: cleaning orchestrator (delegates to modules below)
+├── inspection_cleaning.py         # Inspection-level cleaning (clean_inspection)
+├── final_cleaning.py              # Final imputation & cleanup (final_cleaning)
 ├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
-├── restaurant_construction.py     # Utility: entity resolution (Union-Find, fuzzy matching, Haversine)
+├── restaurant_construction.py     # Entity resolution (Union-Find, fuzzy matching, Haversine)
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
 ├── notebooks/                     # Exploratory Jupyter notebooks
@@ -93,11 +95,11 @@ All outputs are written to the `output/` directory.
 
 | Step | Module | Description |
 |------|--------|-------------|
-| 1 | `profiling.py` | Computes per-column statistics: null count/%, unique count, dtype, top-5 values, and basic numeric stats (mean, std, quartiles). Saves `output/profiling_report.csv`. |
+| 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from the Single-column profiling notebook to profile each column. Saves `output/profiling_report.csv`. |
 | 2 | `association_rules.py` | Mines association rules using the Apriori algorithm (`mlxtend`). Items are built from Facility Type, Risk, Results, and Violation Terms. Saves `output/association_rules.csv` (antecedents, consequents, support, confidence, lift). |
-| 3 | `fd_detection.py` | Discovers functional dependencies by grouping on candidate LHS columns and counting distinct RHS values per group. Reports exact FDs and approximate FDs (≥ 90 % accuracy). Saves `output/fd_table.csv`. |
-| 4 | `fd_cleaning.py` | Cleans inspection-specific columns (type, date, risk, violations), applies FD-driven imputation to fill missing values, then runs fallback mode-based imputation for geographic fields. |
-| 5 | `structuring.py` | Runs entity resolution (fuzzy name matching + Haversine distance + Union-Find clustering) to assign a unique `Restaurant_ID` to each real-world restaurant. Produces a normalised `Restaurant` table and an `Inspections` table with `Restaurant_ID` as a foreign key. |
+| 3 | `fd_detection.py` | Uses `compute_fd_confidence` from the FD discovery notebook to detect functional dependencies across candidate LHS/RHS pairs. Reports exact and approximate FDs. Saves `output/fd_table.csv`. |
+| 4 | `fd_cleaning.py` | Orchestrates cleaning by delegating to: `clean_inspection()` from `inspection_cleaning.py`, `repair_fd()` from the FD discovery notebook, and `final_cleaning()` from `final_cleaning.py`. |
+| 5 | `structuring.py` | Runs entity resolution (`restaurant_cleaning` from `restaurant_construction.py`), merges standardised attributes (`join_infection` from the original `main.py`), then splits into normalised `Restaurant` and `Inspections` tables with `Restaurant_ID` as a foreign key. |
 
 ---
 

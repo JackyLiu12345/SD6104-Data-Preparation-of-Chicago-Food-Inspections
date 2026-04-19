@@ -1,75 +1,168 @@
+"""
+profiling.py
+============
+Single-column profiling step.
+
+Functions are taken from the Single-column profiling notebook
+(Single-column profiling.ipynb) on the main branch.
+"""
+
+import os
 import pandas as pd
 import numpy as np
-import os
 
 
-def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute per-column profiling statistics:
-      - dtype, null count/%, unique count, top-5 values (with frequencies),
-        and basic numeric stats (mean, std, min, 25%, 50%, 75%, max).
-    Returns a DataFrame with one row per column.
-    """
-    rows = []
-    n = len(df)
-    for col in df.columns:
-        series = df[col]
-        null_count = int(series.isna().sum())
-        null_pct = round(null_count / n * 100, 2) if n > 0 else 0.0
-        unique_count = int(series.nunique(dropna=True))
-        dtype = str(series.dtype)
+# ---------------------------------------------------------------------------
+# Functions from Single-column profiling notebook
+# ---------------------------------------------------------------------------
 
-        # Top-5 most frequent values
-        vc = series.dropna().value_counts().head(5)
-        top_values = "; ".join(f"{v}({c})" for v, c in vc.items())
+def format_value_counts(value_counts, max_items=5):
+    """Format value counts for display"""
+    if len(value_counts) == 0:
+        return "No data"
 
-        row = {
-            "Column": col,
-            "DType": dtype,
-            "Null Count": null_count,
-            "Null %": null_pct,
-            "Unique Count": unique_count,
-            "Top 5 Values (count)": top_values,
-            "Mean": np.nan,
-            "Std": np.nan,
-            "Min": np.nan,
-            "25%": np.nan,
-            "50%": np.nan,
-            "75%": np.nan,
-            "Max": np.nan,
+    result = []
+    for i, (value, count) in enumerate(value_counts.items()):
+        if i >= max_items:
+            break
+
+        # Handle NaN values
+        if pd.isna(value):
+            value_str = "NaN"
+        else:
+            value_str = str(value)
+
+        # Truncate long values
+        if len(value_str) > 30:
+            value_str = value_str[:27] + "..."
+
+        result.append(f"{value_str}: {count:,}")
+
+    return "\n".join(result)
+
+
+def print_data_overview(df):
+    """Print basic overview of the dataset"""
+    print("\n" + "=" * 80)
+    print("1. DATASET OVERVIEW")
+    print("=" * 80)
+
+    num_rows, num_cols = df.shape
+    print(f"Dataset Dimensions: {num_rows:,} rows × {num_cols:,} columns")
+
+    return num_rows, num_cols
+
+
+def print_column_summary(df):
+    """Print summary of all columns and their data types"""
+    print("\n" + "-" * 80)
+    print("2. COLUMN SUMMARY")
+    print("-" * 80)
+
+    # Create a formatted table of columns
+    print(f"{'No.':<4} {'Column Name':<25} {'Data Type':<15} {'Unique Values':<15} {'Null Values':<12} {'Null %':<8}")
+    print("-" * 80)
+
+    for i, col in enumerate(df.columns, 1):
+        dtype = str(df[col].dtype)
+        unique_count = df[col].nunique()
+        null_count = df[col].isnull().sum()
+        null_pct = (null_count / len(df)) * 100
+
+        print(f"{i:<4} {col:<25} {dtype:<15} {unique_count:<15,} {null_count:<12,} {null_pct:<8.2f}")
+
+
+def analyze_single_columns(df, num_rows):
+    """Perform detailed analysis of each column"""
+    print("\n" + "-" * 80)
+    print("3. DETAILED COLUMN ANALYSIS")
+    print("-" * 80)
+
+    analysis_results = []
+
+    for column in df.columns:
+        col_info = {
+            'Column': column,
+            'Data_Type': str(df[column].dtype),
+            'Unique_Values': df[column].nunique(),
+            'Null_Values': df[column].isnull().sum(),
+            'Null_Percentage': round((df[column].isnull().sum() / num_rows) * 100, 2)
         }
 
-        # Numeric stats
-        if pd.api.types.is_numeric_dtype(series):
-            desc = series.describe()
-            row["Mean"] = round(float(desc.get("mean", np.nan)), 4)
-            row["Std"] = round(float(desc.get("std", np.nan)), 4)
-            row["Min"] = round(float(desc.get("min", np.nan)), 4)
-            row["25%"] = round(float(desc.get("25%", np.nan)), 4)
-            row["50%"] = round(float(desc.get("50%", np.nan)), 4)
-            row["75%"] = round(float(desc.get("75%", np.nan)), 4)
-            row["Max"] = round(float(desc.get("max", np.nan)), 4)
+        # Check if column is numeric
+        is_numeric = pd.api.types.is_numeric_dtype(df[column])
 
-        rows.append(row)
+        # Handle top 5 values and their counts
+        if df[column].nunique() <= 20:
+            # 20 or fewer unique values, show all values
+            value_counts = df[column].value_counts(dropna=False)
+            col_info['Value_Distribution'] = format_value_counts(value_counts)
+        else:
+            # More than 20 unique values
+            if is_numeric:
+                # High cardinality numeric column, show statistics
+                if df[column].notna().any():
+                    stats = f"Range: [{df[column].min():.2f}, {df[column].max():.2f}], "
+                    stats += f"Mean: {df[column].mean():.2f}, "
+                    stats += f"Std: {df[column].std():.2f}"
+                    col_info['Value_Distribution'] = stats
+                else:
+                    col_info['Value_Distribution'] = 'All Null Values'
+            else:
+                # High cardinality non-numeric column, show top 5
+                top_vals = df[column].value_counts(dropna=False).head(5)
+                col_info['Value_Distribution'] = format_value_counts(top_vals)
 
-    return pd.DataFrame(rows)
+        analysis_results.append(col_info)
 
+    # Print analysis results in a clean format
+    print(f"{'Column':<25} {'Type':<10} {'Unique':<8} {'Null':<6} {'Null%':<7} {'Top Values / Statistics'}")
+    print("-" * 80)
+
+    for result in analysis_results:
+        col_name = result['Column']
+        if len(col_name) > 24:
+            col_name = col_name[:21] + "..."
+
+        # Print main row
+        print(f"{col_name:<25} {result['Data_Type']:<10} {result['Unique_Values']:<8,} "
+              f"{result['Null_Values']:<6,} {result['Null_Percentage']:<6.2f} ", end="")
+
+        # Print value distribution (first line)
+        dist_lines = str(result['Value_Distribution']).split('\n')
+        if dist_lines:
+            print(dist_lines[0][:50] + ("..." if len(dist_lines[0]) > 50 else ""))
+
+        # Print additional lines if needed
+        for line in dist_lines[1:]:
+            print(" " * 56 + line[:50] + ("..." if len(line) > 50 else ""))
+
+    return analysis_results
+
+
+# ---------------------------------------------------------------------------
+# Pipeline wrapper
+# ---------------------------------------------------------------------------
 
 def run_profiling(df: pd.DataFrame, output_path: str = "output/profiling_report.csv") -> pd.DataFrame:
     """
-    Profile every column in *df*, print a summary, and save the report to
-    *output_path*.  Returns the profiling report DataFrame.
+    Profile every column in *df* using the notebook profiling functions,
+    print a summary, and save the report to *output_path*.
+
+    Returns the profiling report DataFrame.
     """
-    print("  Computing per-column statistics ...")
-    report = profile_dataframe(df)
+    num_rows, num_cols = print_data_overview(df)
+    print_column_summary(df)
+    results = analyze_single_columns(df, num_rows)
+
+    # Also build a DataFrame report for CSV export
+    report = pd.DataFrame(results)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     report.to_csv(output_path, index=False)
-    print(f"  Profiling report saved to: {output_path}")
+    print(f"\n  Profiling report saved to: {output_path}")
 
-    # Brief console summary
-    print(f"\n  Dataset shape: {df.shape[0]:,} rows × {df.shape[1]} columns")
-    high_null = report[report["Null %"] > 50]
+    high_null = report[report["Null_Percentage"] > 50]
     if not high_null.empty:
         cols_str = ", ".join(high_null["Column"].tolist())
         print(f"  Columns with >50 % nulls: {cols_str}")

@@ -1,16 +1,48 @@
+"""
+fd_detection.py
+===============
+Functional dependency detection step.
+
+The core ``compute_fd_confidence`` function is taken from the
+FD discovery notebook (FD discovery.ipynb) on the main branch.
+``discover_fds`` wraps it to scan all candidate LHS/RHS pairs.
+"""
+
 import os
 import pandas as pd
 
 
+# ---------------------------------------------------------------------------
+# Function from FD discovery notebook
+# ---------------------------------------------------------------------------
+
+def compute_fd_confidence(df, lhs, rhs):
+    """Compute the confidence of the FD  lhs → rhs.
+
+    Confidence = 1 − (number of LHS groups with >1 distinct RHS value) / total groups.
+
+    Taken directly from the FD discovery notebook on main branch.
+    """
+    if isinstance(lhs, str):
+        lhs = [lhs]
+    rhs_counts = df.groupby(lhs)[rhs].nunique()
+    violations = (rhs_counts > 1).sum()
+    total = len(rhs_counts)
+    return round(1 - violations / total, 4)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline helpers
+# ---------------------------------------------------------------------------
+
 def discover_fds(df: pd.DataFrame, lhs_cols: list, rhs_cols: list) -> pd.DataFrame:
     """
-    Discover functional dependencies of the form  LHS → RHS.
+    Discover functional dependencies of the form  LHS → RHS using
+    ``compute_fd_confidence`` from the FD discovery notebook.
 
-    For every (lhs, rhs) pair the function groups *df* on *lhs* and counts the
-    number of distinct *rhs* values per group.  If every group has exactly one
-    distinct *rhs* value the FD holds exactly; otherwise the violation rate
-    (fraction of groups with > 1 distinct value) and the approximate accuracy
-    are reported.
+    For every (lhs, rhs) pair the function computes the FD confidence
+    (= accuracy).  If confidence is 1.0 the FD holds exactly; otherwise
+    the violation rate and approximate accuracy are reported.
 
     Parameters
     ----------
@@ -34,11 +66,15 @@ def discover_fds(df: pd.DataFrame, lhs_cols: list, rhs_cols: list) -> pd.DataFra
             sub = df[[lhs, rhs]].dropna()
             if sub.empty:
                 continue
+
+            confidence = compute_fd_confidence(sub, lhs, rhs)
+            accuracy_pct = round(confidence * 100, 2)
+
             grouped = sub.groupby(lhs)[rhs].nunique()
             total_groups = len(grouped)
             violating = int((grouped > 1).sum())
             violation_rate = round(violating / total_groups * 100, 2) if total_groups > 0 else 0.0
-            accuracy = round(100.0 - violation_rate, 2)
+
             rows.append(
                 {
                     "LHS": lhs,
@@ -46,7 +82,7 @@ def discover_fds(df: pd.DataFrame, lhs_cols: list, rhs_cols: list) -> pd.DataFra
                     "Total Groups": total_groups,
                     "Violating Groups": violating,
                     "Violation Rate (%)": violation_rate,
-                    "Accuracy (%)": accuracy,
+                    "Accuracy (%)": accuracy_pct,
                     "Holds Exactly": violating == 0,
                 }
             )

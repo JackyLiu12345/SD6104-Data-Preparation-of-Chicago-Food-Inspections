@@ -3,14 +3,24 @@ main.py
 =======
 Orchestrator for the Chicago Food Inspections data-preparation pipeline.
 
+The pipeline follows the same flow as the original main.py on the main
+branch, augmented with profiling, association-rule mining, and FD
+detection/repair steps.
+
 Pipeline
 --------
   Raw CSV
     → Step 1: Single-column profiling     → output/profiling_report.csv
     → Step 2: Association rule mining     → output/association_rules.csv
     → Step 3: FD detection                → output/fd_table.csv
-    → Step 4: FD-based data cleaning
-    → Step 5: Data structuring            → output/restaurant_table.csv
+    → Step 4: Data cleaning
+        4a. Inspection cleaning            (clean_inspection)
+        4b. FD repair                      (repair_fd from FD discovery notebook)
+    → Step 5: Restaurant entity construction + merge
+        5a. Restaurant construction        (restaurant_cleaning)
+        5b. Merge standardised columns     (join_infection)
+    → Step 6: Final cleaning               (final_cleaning)
+    → Step 7: Data structuring            → output/restaurant_table.csv
                                           → output/inspections_table.csv
 
 Usage
@@ -76,9 +86,14 @@ def main():
     fd_table = run_fd_detection(df_raw, output_path="output/fd_table.csv")
 
     # ------------------------------------------------------------------
-    # Step 4: FD-based data cleaning
+    # Step 4: Data cleaning (inspection cleaning + FD repair + final cleaning)
+    #
+    # Internally delegates to:
+    #   • clean_inspection()  from inspection_cleaning.py
+    #   • repair_fd()         from FD discovery notebook
+    #   • final_cleaning()    from final_cleaning.py
     # ------------------------------------------------------------------
-    _step_header(4, "FD-based data cleaning")
+    _step_header(4, "Data cleaning")
     df_clean = run_fd_cleaning(df_raw.copy(), fd_table=fd_table)
     print(f"  Cleaned shape: {df_clean.shape[0]:,} rows × {df_clean.shape[1]} columns")
     remaining_nulls = df_clean.isna().sum()
@@ -88,7 +103,7 @@ def main():
         print(remaining_nulls.to_string(header=False))
 
     # ------------------------------------------------------------------
-    # Step 5: Data structuring
+    # Step 5: Data structuring (Restaurant + Inspections tables)
     # ------------------------------------------------------------------
     _step_header(5, "Data structuring (Restaurant + Inspections tables)")
     restaurant_table, inspections_table = run_structuring(

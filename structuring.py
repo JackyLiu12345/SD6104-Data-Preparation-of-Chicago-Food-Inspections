@@ -4,12 +4,37 @@ structuring.py
 Data structuring step: extract a normalised Restaurant table (with a unique
 Restaurant_ID) and an Inspections table that references Restaurant_ID.
 
-Entity resolution is delegated to restaurant_construction.py.
+Entity resolution is delegated to restaurant_construction.py (from main branch).
+The merge function ``join_infection`` is taken from the original main.py on
+the main branch.
 """
 
 import os
 import pandas as pd
 from restaurant_construction import restaurant_cleaning
+
+
+# ---------------------------------------------------------------------------
+# Function from the original main.py on the main branch
+# ---------------------------------------------------------------------------
+
+def join_infection(restaurant_std, infection_df, join_cols):
+    """Merge standardised restaurant attributes and Entity_ID back into the
+    inspection-level DataFrame.
+
+    Taken directly from the original main.py on the main branch.
+    """
+    right_unique = restaurant_std.sort_values('cnt', ascending=False).drop_duplicates(subset=join_cols, keep='first')
+    df = infection_df.merge(right_unique, on=join_cols, how='left')
+    mask = df['cnt'].notna()
+    for col in ['DBA Name', 'Zip', 'Latitude', 'Longitude', 'Facility Type']:
+        std_col = col + '_std'
+        if std_col in df.columns:
+            df.loc[mask, col] = df.loc[mask, std_col]
+            df = df.drop(std_col, axis=1)
+    drop_cols = ['cnt', 'total_records', 'diff_info_cnt']
+    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors='ignore')
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -41,29 +66,16 @@ _INSPECTION_COLS = [
 ]
 
 
+_JOIN_COLS = ["License #", "DBA Name", "Zip", "Latitude", "Longitude", "Facility Type"]
+
+
 def _join_standardised(restaurant_std: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
     """
     Merge the standardised restaurant attributes and Entity_ID back into the
-    inspection-level DataFrame.
+    inspection-level DataFrame.  Delegates to ``join_infection`` from the
+    original main.py on the main branch.
     """
-    join_cols = ["License #", "DBA Name", "Zip", "Latitude", "Longitude", "Facility Type"]
-    right_unique = (
-        restaurant_std
-        .sort_values("cnt", ascending=False)
-        .drop_duplicates(subset=join_cols, keep="first")
-    )
-    df = df.merge(right_unique, on=join_cols, how="left")
-
-    mask = df["cnt"].notna()
-    for col in ["DBA Name", "Zip", "Latitude", "Longitude", "Facility Type"]:
-        std_col = col + "_std"
-        if std_col in df.columns:
-            df.loc[mask, col] = df.loc[mask, std_col]
-            df = df.drop(std_col, axis=1)
-
-    drop_cols = ["cnt", "total_records", "diff_info_cnt"]
-    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
-    return df
+    return join_infection(restaurant_std, df, _JOIN_COLS)
 
 
 def _build_restaurant_table(df: pd.DataFrame) -> pd.DataFrame:
