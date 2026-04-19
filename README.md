@@ -12,7 +12,7 @@ Raw CSV (Food_Inspections_20240215.csv)
   ▼
 Step 1 ── Single-column profiling + data cleaning
   │         Cell 0: per-column null %, unique count, dtype, top values, stats
-  │         Cell 1: Facility Type fill, drop Location/City/State, Zip filter,
+  │         Cell 1: Facility Type fill, drop Location/City/State, Zip null cleanup,
   │                 License # cleaning, Inspection Type/Risk/Date/Violations
   │         → output/profiling_report.csv
   │
@@ -96,7 +96,7 @@ All outputs are written to the `output/` directory.
 
 | Step | Module | Description |
 |------|--------|-------------|
-| 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from Cell 0 of the Single-column profiling notebook to profile each column. Then applies `clean_data` from Cell 1 of the same notebook: fills Facility Type nulls, drops Location/City/State, filters Zip codes, cleans License #, processes Inspection Type/Risk/Date, and extracts Violation Terms. Saves `output/profiling_report.csv`. |
+| 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from Cell 0 of the Single-column profiling notebook to profile each column. Then applies `clean_data` from Cell 1 of the same notebook: fills Facility Type nulls, drops Location/City/State, cleans Zip nulls, cleans License #, processes Inspection Type/Risk/Date, and extracts Violation Terms. Saves `output/profiling_report.csv`. |
 | 2 | `association_rules.py` | Mines association rules using the Apriori algorithm (`mlxtend`). Items are built from Facility Type, Risk, Results, and Violation Terms. Saves `output/association_rules.csv` (antecedents, consequents, support, confidence, lift). |
 | 3 | `fd_detection.py` | Uses `compute_fd_confidence` from the FD discovery notebook to detect functional dependencies across candidate LHS/RHS pairs. Reports exact and approximate FDs. Saves `output/fd_table.csv`. |
 | 4 | `fd_cleaning.py` | Applies FD-driven repair using `repair_fd()` from the FD discovery notebook, then runs `final_cleaning()` from `final_cleaning.py` for fallback imputation. |

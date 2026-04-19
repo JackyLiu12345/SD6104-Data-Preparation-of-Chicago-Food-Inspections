@@ -231,7 +231,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     Steps (matching the notebook exactly):
       1. Process Facility Type — fill nulls with 'Others'
       2. Delete Location, City, State columns
-      3. Process Zip — delete nulls, filter to valid Chicago zip-code ranges
+      3. Process Zip — delete nulls, convert to numeric
       4. Process License # — delete nulls and zeros
       5. Process Inspection Type — delete nulls
       6. Process Risk — delete nulls and 'All'
@@ -273,7 +273,6 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # 3. Process Zip column
     print("\n3. Processing Zip Column")
     print("-" * 40)
-    original_rows = df.shape[0]
 
     # Delete null values
     zip_null_count = df['Zip'].isnull().sum()
@@ -283,29 +282,8 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # Convert Zip column to numeric type
     df['Zip'] = pd.to_numeric(df['Zip'], errors='coerce')
 
-    # Apply range filter conditions
-    # Keep: 60600-60699 OR 60290 OR 60701
-    zip_mask = (
-        ((df['Zip'] >= 60600) & (df['Zip'] <= 60699)) |  # 60600-60699 range
-        (df['Zip'] == 60290) |                           # equals 60290
-        (df['Zip'] == 60701)                             # equals 60701
-    )
-    df = df[zip_mask].copy()
-
-    rows_after_zip = df.shape[0]
-    rows_removed_zip = original_rows - rows_after_zip
-
-    zip_606 = ((df['Zip'] >= 60600) & (df['Zip'] <= 60699)).sum()
-    zip_60290 = (df['Zip'] == 60290).sum()
-    zip_60701 = (df['Zip'] == 60701).sum()
-
-    print(f"  b) Deleted {rows_removed_zip} rows outside specified zip code range")
-    print(f"  c) Unique zip code count: {df['Zip'].nunique()}")
-    print(f"  d) Zip code range: {df['Zip'].min()} to {df['Zip'].max()}")
-    print(f"  e) Record counts by zip code range:")
-    print(f"     - 60600-60699: {zip_606:,} records")
-    print(f"     - 60290: {zip_60290:,} records")
-    print(f"     - 60701: {zip_60701:,} records")
+    print(f"  b) Unique zip code count: {df['Zip'].nunique()}")
+    print(f"  c) Zip code range: {df['Zip'].min()} to {df['Zip'].max()}")
 
     # 4. Process License # column
     print("\n4. Processing License # Column")
