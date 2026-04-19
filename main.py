@@ -10,17 +10,16 @@ detection/repair steps.
 Pipeline
 --------
   Raw CSV
-    → Step 1: Single-column profiling     → output/profiling_report.csv
+    → Step 1: Single-column profiling + data cleaning
+              (profiling from Cell 0, cleaning from Cell 1 of the
+               Single-column profiling notebook)
+              → output/profiling_report.csv
     → Step 2: Association rule mining     → output/association_rules.csv
     → Step 3: FD detection                → output/fd_table.csv
-    → Step 4: Data cleaning
-        4a. Inspection cleaning            (clean_inspection)
-        4b. FD repair                      (repair_fd from FD discovery notebook)
-    → Step 5: Restaurant entity construction + merge
-        5a. Restaurant construction        (restaurant_cleaning)
-        5b. Merge standardised columns     (join_infection)
-    → Step 6: Final cleaning               (final_cleaning)
-    → Step 7: Data structuring            → output/restaurant_table.csv
+    → Step 4: FD repair + final cleaning
+        4a. FD repair                      (repair_fd from FD discovery notebook)
+        4b. Final cleaning                 (final_cleaning)
+    → Step 5: Data structuring            → output/restaurant_table.csv
                                           → output/inspections_table.csv
 
 Usage
@@ -63,17 +62,21 @@ def main():
     print(f"Raw shape: {df_raw.shape[0]:,} rows × {df_raw.shape[1]} columns")
 
     # ------------------------------------------------------------------
-    # Step 1: Single-column profiling
+    # Step 1: Single-column profiling + data cleaning
+    #
+    # Both profiling and data cleaning come from the Single-column
+    # profiling notebook on the main branch (Cell 0 and Cell 1).
     # ------------------------------------------------------------------
-    _step_header(1, "Single-column profiling")
-    run_profiling(df_raw, output_path="output/profiling_report.csv")
+    _step_header(1, "Single-column profiling + data cleaning")
+    _profiling_report, df_clean = run_profiling(df_raw, output_path="output/profiling_report.csv")
+    print(f"  Cleaned shape: {df_clean.shape[0]:,} rows × {df_clean.shape[1]} columns")
 
     # ------------------------------------------------------------------
     # Step 2: Association rule mining
     # ------------------------------------------------------------------
     _step_header(2, "Association rule mining")
     run_association_rules(
-        df_raw,
+        df_clean,
         min_support=0.02,
         min_confidence=0.3,
         output_path="output/association_rules.csv",
@@ -83,18 +86,18 @@ def main():
     # Step 3: FD detection
     # ------------------------------------------------------------------
     _step_header(3, "Functional Dependency (FD) detection")
-    fd_table = run_fd_detection(df_raw, output_path="output/fd_table.csv")
+    fd_table = run_fd_detection(df_clean, output_path="output/fd_table.csv")
 
     # ------------------------------------------------------------------
-    # Step 4: Data cleaning (inspection cleaning + FD repair + final cleaning)
+    # Step 4: Data cleaning (FD repair + final cleaning)
     #
-    # Internally delegates to:
-    #   • clean_inspection()  from inspection_cleaning.py
-    #   • repair_fd()         from FD discovery notebook
-    #   • final_cleaning()    from final_cleaning.py
+    # Note: Inspection-level cleaning (Inspection Type, Date, Risk,
+    # Violations, Facility Type, Zip, License #) was already done in
+    # Step 1 by clean_data() from the Single-column profiling notebook.
+    # This step only applies FD repair and final imputation.
     # ------------------------------------------------------------------
-    _step_header(4, "Data cleaning")
-    df_clean = run_fd_cleaning(df_raw.copy(), fd_table=fd_table)
+    _step_header(4, "FD repair + final cleaning")
+    df_clean = run_fd_cleaning(df_clean.copy(), fd_table=fd_table)
     print(f"  Cleaned shape: {df_clean.shape[0]:,} rows × {df_clean.shape[1]} columns")
     remaining_nulls = df_clean.isna().sum()
     remaining_nulls = remaining_nulls[remaining_nulls > 0]

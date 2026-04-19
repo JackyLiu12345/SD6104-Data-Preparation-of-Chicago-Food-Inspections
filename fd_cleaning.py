@@ -6,14 +6,16 @@ FD-based data cleaning step.
 Delegates to the original main-branch modules and uses ``repair_fd``
 from the FD discovery notebook:
 
-  • Inspection-level cleaning   → inspection_cleaning.clean_inspection
   • FD-driven repair            → repair_fd (from FD discovery notebook)
   • Final imputation & cleanup  → final_cleaning.final_cleaning
+
+Note: Inspection-level cleaning (Inspection Type, Date, Risk, Violations,
+Facility Type, Zip, License #) is handled upstream by ``clean_data()`` in
+``profiling.py`` — taken from Cell 1 of the Single-column profiling notebook.
 """
 
 import pandas as pd
 
-from inspection_cleaning import clean_inspection
 from final_cleaning import final_cleaning
 from fd_detection import compute_fd_confidence
 
@@ -142,15 +144,19 @@ def _apply_fd_repair(df: pd.DataFrame) -> pd.DataFrame:
 
 def run_fd_cleaning(df: pd.DataFrame, fd_table: pd.DataFrame | None = None) -> pd.DataFrame:
     """
-    Full FD-based cleaning pipeline using functions from the main branch:
+    FD-based cleaning pipeline:
 
-      1. Inspection-level cleaning  (clean_inspection from inspection_cleaning.py)
-      2. FD-driven repair           (repair_fd from FD discovery notebook)
-      3. Fallback imputation        (final_cleaning from final_cleaning.py)
+      1. FD-driven repair           (repair_fd from FD discovery notebook)
+      2. Fallback imputation        (final_cleaning from final_cleaning.py)
+
+    Note: Inspection-level cleaning (Inspection Type, Date, Risk, Violations,
+    Facility Type, Zip, License #) is handled upstream by ``clean_data()``
+    in ``profiling.py`` — taken from Cell 1 of the Single-column profiling
+    notebook on the main branch.
 
     Parameters
     ----------
-    df       : Raw / lightly pre-processed DataFrame.
+    df       : Pre-cleaned DataFrame (already processed by profiling.clean_data).
     fd_table : FD table from fd_detection.run_fd_detection() (informational,
                not used for repair — the repair FDs are predefined in the
                notebook).
@@ -159,9 +165,6 @@ def run_fd_cleaning(df: pd.DataFrame, fd_table: pd.DataFrame | None = None) -> p
     -------
     Cleaned DataFrame.
     """
-    print("  --- Inspection-column cleaning (clean_inspection) ---")
-    df = clean_inspection(df)
-
     print("  --- FD-driven repair (repair_fd from FD discovery notebook) ---")
     df = _apply_fd_repair(df)
 

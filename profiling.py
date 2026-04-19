@@ -1,13 +1,22 @@
 """
 profiling.py
 ============
-Single-column profiling step.
+Single-column profiling and data cleaning step.
 
-Functions are taken from the Single-column profiling notebook
+All functions are taken from the Single-column profiling notebook
 (Single-column profiling.ipynb) on the main branch.
+
+Cell 0 of the notebook contains the profiling functions
+(print_data_overview, print_column_summary, analyze_single_columns, etc.).
+
+Cell 1 of the notebook contains the data cleaning / enrichment functions
+(clean_data) which handle Facility Type, Location/City/State deletion,
+Zip filtering, License # cleaning, Inspection Type, Risk, Inspection Date
+conversion, and Violation Terms extraction.
 """
 
 import os
+import re
 import pandas as pd
 import numpy as np
 
@@ -141,21 +150,303 @@ def analyze_single_columns(df, num_rows):
 
 
 # ---------------------------------------------------------------------------
+# Data cleaning functions from Cell 1 of Single-column profiling notebook
+# ---------------------------------------------------------------------------
+
+def extract_violation_terms(violation_text):
+    """
+    Extract clause numbers from violation description.
+    Improved extraction function that correctly handles multiple violation clauses.
+
+    Taken directly from Cell 1 of the Single-column profiling notebook on
+    the main branch.
+
+    Args:
+        violation_text (str): Original violation description text
+
+    Returns:
+        str: Extracted clause numbers, comma-separated, e.g., "23,37,38"
+        np.nan: If no clause numbers are extracted
+    """
+    if pd.isna(violation_text):
+        return np.nan
+
+    text = str(violation_text)
+
+    # 1. First split multiple violation clauses by "|"
+    clauses = [clause.strip() for clause in text.split('|')]
+
+    all_matches = []
+
+    for clause in clauses:
+        # 2. For each clause, separate main description and Comments part
+        main_part = clause
+
+        # Comments markers can have various forms
+        comments_markers = [" - Comments:", "Comments:", " - ", "COMMENTS:"]
+        for marker in comments_markers:
+            if marker in main_part:
+                parts = main_part.split(marker, 1)
+                if len(parts) > 1:
+                    main_part = parts[0]  # Keep only the main description part
+                    break
+
+        # 3. Extract clause numbers from the main description part
+        # Pattern: Digits at the beginning, followed by a dot, then a space
+        pattern = r'^\s*(\d+)\.\s'
+        match = re.search(pattern, main_part)
+        if match:
+            # Extract clause number
+            term = match.group(1)
+            try:
+                # Remove leading zeros
+                term_clean = str(int(term))
+                all_matches.append(term_clean)
+            except ValueError:
+                all_matches.append(term)
+        else:
+            # Backup pattern: Try to match other clause numbers in the main description
+            backup_pattern = r'\b(\d+)\.\s+[A-Z]'
+            backup_matches = re.findall(backup_pattern, main_part)
+            for term in backup_matches:
+                try:
+                    term_clean = str(int(term))
+                    all_matches.append(term_clean)
+                except ValueError:
+                    all_matches.append(term)
+
+    if all_matches:
+        # Remove duplicates and sort
+        unique_matches = sorted(set(all_matches), key=lambda x: int(x) if x.isdigit() else 0)
+        return ','.join(unique_matches)
+
+    return np.nan
+
+
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Full data cleaning and enrichment from Cell 1 of the Single-column
+    profiling notebook on the main branch.
+
+    Steps (matching the notebook exactly):
+      1. Process Facility Type — fill nulls with 'Others'
+      2. Delete Location, City, State columns
+      3. Process Zip — delete nulls, filter to valid Chicago zip-code ranges
+      4. Process License # — delete nulls and zeros
+      5. Process Inspection Type — delete nulls
+      6. Process Risk — delete nulls and 'All'
+      7. Process Inspection Date — convert to Year/Month/Day columns
+      8. Process Violations — extract Violation Terms
+
+    Parameters
+    ----------
+    df : Raw DataFrame loaded from the CSV.
+
+    Returns
+    -------
+    Cleaned DataFrame.
+    """
+    df = df.copy()
+
+    print("=" * 60)
+    print("Starting Data Cleaning")
+    print("=" * 60)
+    print(f"Original data shape: {df.shape[0]} rows × {df.shape[1]} columns")
+
+    # 1. Process Facility Type column
+    print("\n1. Processing Facility Type Column")
+    print("-" * 40)
+    facility_null_count = df['Facility Type'].isnull().sum()
+    df['Facility Type'] = df['Facility Type'].fillna('Others')
+    print(f"  Replaced {facility_null_count} null values with 'Others'")
+    print(f"  'Others' now has {df['Facility Type'].value_counts().get('Others', 0)} records")
+
+    # 2. Delete Location, City, State columns
+    print("\n2. Deleting Location, City, State Columns")
+    print("-" * 40)
+    cols_to_drop = ['Location', 'City', 'State']
+    cols_exist = [col for col in cols_to_drop if col in df.columns]
+    df = df.drop(columns=cols_exist)
+    print(f"  Deleted columns: {cols_exist}")
+    print(f"  Data shape after deletion: {df.shape[0]} rows × {df.shape[1]} columns")
+
+    # 3. Process Zip column
+    print("\n3. Processing Zip Column")
+    print("-" * 40)
+    original_rows = df.shape[0]
+
+    # Delete null values
+    zip_null_count = df['Zip'].isnull().sum()
+    df = df.dropna(subset=['Zip'])
+    print(f"  a) Deleted {zip_null_count} null values")
+
+    # Convert Zip column to numeric type
+    df['Zip'] = pd.to_numeric(df['Zip'], errors='coerce')
+
+    # Apply range filter conditions
+    # Keep: 60600-60699 OR 60290 OR 60701
+    zip_mask = (
+        ((df['Zip'] >= 60600) & (df['Zip'] <= 60699)) |  # 60600-60699 range
+        (df['Zip'] == 60290) |                           # equals 60290
+        (df['Zip'] == 60701)                             # equals 60701
+    )
+    df = df[zip_mask].copy()
+
+    rows_after_zip = df.shape[0]
+    rows_removed_zip = original_rows - rows_after_zip
+
+    zip_606 = ((df['Zip'] >= 60600) & (df['Zip'] <= 60699)).sum()
+    zip_60290 = (df['Zip'] == 60290).sum()
+    zip_60701 = (df['Zip'] == 60701).sum()
+
+    print(f"  b) Deleted {rows_removed_zip} rows outside specified zip code range")
+    print(f"  c) Unique zip code count: {df['Zip'].nunique()}")
+    print(f"  d) Zip code range: {df['Zip'].min()} to {df['Zip'].max()}")
+    print(f"  e) Record counts by zip code range:")
+    print(f"     - 60600-60699: {zip_606:,} records")
+    print(f"     - 60290: {zip_60290:,} records")
+    print(f"     - 60701: {zip_60701:,} records")
+
+    # 4. Process License # column
+    print("\n4. Processing License # Column")
+    print("-" * 40)
+    original_rows = df.shape[0]
+
+    # Delete null values
+    license_null_count = df['License #'].isnull().sum()
+    df = df.dropna(subset=['License #'])
+    print(f"  a) Deleted {license_null_count} null values")
+
+    # Delete rows with value 0
+    df['License #'] = pd.to_numeric(df['License #'], errors='coerce')
+    zeros_mask = (df['License #'] == 0)
+    zero_count = zeros_mask.sum()
+    df = df[~zeros_mask].copy()
+
+    rows_after_license = df.shape[0]
+    rows_removed_license = original_rows - rows_after_license
+    print(f"  b) Deleted {zero_count} rows with value 0")
+    print(f"  c) Total rows deleted: {rows_removed_license}")
+    print(f"  d) License # range: {df['License #'].min()} to {df['License #'].max()}")
+
+    # 5. Process Inspection Type column
+    print("\n5. Processing Inspection Type Column")
+    print("-" * 40)
+    original_rows = df.shape[0]
+
+    inspection_type_null_count = df['Inspection Type'].isnull().sum()
+    df = df.dropna(subset=['Inspection Type'])
+
+    rows_after_inspection = df.shape[0]
+    rows_removed_inspection = original_rows - rows_after_inspection
+    print(f"  Deleted {inspection_type_null_count} null values")
+    print(f"  Total rows deleted: {rows_removed_inspection}")
+
+    # 6. Process Risk column
+    print("\n6. Processing Risk Column")
+    print("-" * 40)
+    original_rows = df.shape[0]
+
+    risk_null_count = df['Risk'].isnull().sum()
+    df = df.dropna(subset=['Risk'])
+    print(f"  a) Deleted {risk_null_count} null values")
+
+    # Delete rows with value "All"
+    all_mask = (df['Risk'] == 'All')
+    all_count = all_mask.sum()
+    df = df[~all_mask].copy()
+
+    rows_after_risk = df.shape[0]
+    rows_removed_risk = original_rows - rows_after_risk
+    print(f"  b) Deleted {all_count} rows with value 'All'")
+    print(f"  c) Total rows deleted: {rows_removed_risk}")
+    print(f"  d) Risk unique values: {df['Risk'].unique().tolist()}")
+
+    # 7. Process Inspection Date column
+    print("\n7. Processing Inspection Date Column")
+    print("-" * 40)
+    df['Inspection Date'] = pd.to_datetime(df['Inspection Date'], format='%m/%d/%Y', errors='coerce')
+
+    conversion_failures = df['Inspection Date'].isnull().sum()
+    if conversion_failures > 0:
+        print(f"  Warning: {conversion_failures} date conversion failures")
+
+    # Extract year, month, day
+    df['Inspection Year'] = df['Inspection Date'].dt.year
+    df['Inspection Month'] = df['Inspection Date'].dt.month
+    df['Inspection Day'] = df['Inspection Date'].dt.day
+
+    # Delete original column
+    df = df.drop(columns=['Inspection Date'])
+
+    print(f"  Added three columns: Inspection Year, Inspection Month, Inspection Day")
+    print(f"  Date range: {df['Inspection Year'].min()} to {df['Inspection Year'].max()}")
+
+    # 8. Process Violations column
+    print("\n8. Processing Violations Column")
+    print("-" * 40)
+
+    df['Violation Terms'] = df['Violations'].apply(extract_violation_terms)
+
+    extracted_count = df['Violation Terms'].notna().sum()
+    no_violation_count = df['Violations'].isna().sum()
+    total_rows = df.shape[0]
+
+    print(f"  a) Successfully extracted clause numbers from {extracted_count} records")
+    print(f"  b) {no_violation_count} records have no violations")
+
+    # Show cleaned data overview
+    print("\n" + "=" * 60)
+    print("Cleaning Complete! Data Overview")
+    print("=" * 60)
+    print(f"Total records: {df.shape[0]:,}")
+    print(f"Total columns: {df.shape[1]}")
+    print(f"Data type distribution:")
+    for dtype, count in df.dtypes.value_counts().items():
+        print(f"  {dtype}: {count} columns")
+
+    print(f"\nColumn information:")
+    for i, col in enumerate(df.columns, 1):
+        null_count = df[col].isnull().sum()
+        null_pct = null_count / len(df) * 100
+        unique_count = df[col].nunique()
+        print(f"  {i:2d}. {col:25s} Null: {null_count:6,d} ({null_pct:5.2f}%) Unique: {unique_count:6,d}")
+
+    print("\n" + "=" * 60)
+    print("Data Cleaning Process Complete!")
+    print("=" * 60)
+
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Pipeline wrapper
 # ---------------------------------------------------------------------------
 
-def run_profiling(df: pd.DataFrame, output_path: str = "output/profiling_report.csv") -> pd.DataFrame:
+def run_profiling(df: pd.DataFrame, output_path: str = "output/profiling_report.csv") -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Profile every column in *df* using the notebook profiling functions,
-    print a summary, and save the report to *output_path*.
+    then clean the data using the notebook cleaning functions.
 
-    Returns the profiling report DataFrame.
+    This matches the full workflow of the Single-column profiling notebook
+    on the main branch (Cell 0 = profiling, Cell 1 = data cleaning).
+
+    Parameters
+    ----------
+    df          : Raw DataFrame loaded from the CSV.
+    output_path : Where to save the profiling report CSV.
+
+    Returns
+    -------
+    (profiling_report, cleaned_df) — the profiling report DataFrame and the
+    cleaned DataFrame ready for downstream steps.
     """
+    # --- Cell 0: Profiling ---
     num_rows, num_cols = print_data_overview(df)
     print_column_summary(df)
     results = analyze_single_columns(df, num_rows)
 
-    # Also build a DataFrame report for CSV export
+    # Build a DataFrame report for CSV export
     report = pd.DataFrame(results)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -167,4 +458,7 @@ def run_profiling(df: pd.DataFrame, output_path: str = "output/profiling_report.
         cols_str = ", ".join(high_null["Column"].tolist())
         print(f"  Columns with >50 % nulls: {cols_str}")
 
-    return report
+    # --- Cell 1: Data cleaning ---
+    df_clean = clean_data(df)
+
+    return report, df_clean

@@ -10,8 +10,10 @@ A course project (SD6104) that implements a complete, sequential **data-preparat
 Raw CSV (Food_Inspections_20240215.csv)
   │
   ▼
-Step 1 ── Single-column profiling
-  │         per-column null %, unique count, dtype, top values, numeric stats
+Step 1 ── Single-column profiling + data cleaning
+  │         Cell 0: per-column null %, unique count, dtype, top values, stats
+  │         Cell 1: Facility Type fill, drop Location/City/State, Zip filter,
+  │                 License # cleaning, Inspection Type/Risk/Date/Violations
   │         → output/profiling_report.csv
   │
   ▼
@@ -25,9 +27,8 @@ Step 3 ── Functional Dependency (FD) detection
   │         → output/fd_table.csv
   │
   ▼
-Step 4 ── FD-based data cleaning
-  │         • parse Inspection Type / Date / Risk / Violations
-  │         • FD-driven imputation (use discovered FDs to fill missing values)
+Step 4 ── FD repair + final cleaning
+  │         • FD-driven repair (standardise minority RHS to majority)
   │         • fallback imputation (mode by location/zip, default City/State)
   │
   ▼
@@ -44,12 +45,12 @@ Step 5 ── Data structuring
 ```
 .
 ├── main.py                        # Pipeline orchestrator — run this
-├── profiling.py                   # Step 1: single-column profiling (functions from notebook)
+├── profiling.py                   # Step 1: profiling + data cleaning (both from notebook)
 ├── association_rules.py           # Step 2: association rule mining (Apriori)
 ├── fd_detection.py                # Step 3: FD detection (compute_fd_confidence from notebook)
-├── fd_cleaning.py                 # Step 4: cleaning orchestrator (delegates to modules below)
-├── inspection_cleaning.py         # Inspection-level cleaning (clean_inspection)
-├── final_cleaning.py              # Final imputation & cleanup (final_cleaning)
+├── fd_cleaning.py                 # Step 4: FD repair + final cleaning orchestrator
+├── inspection_cleaning.py         # Inspection-level cleaning (clean_inspection, from main branch)
+├── final_cleaning.py              # Final imputation & cleanup (final_cleaning, from main branch)
 ├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
 ├── restaurant_construction.py     # Entity resolution (Union-Find, fuzzy matching, Haversine)
 ├── requirements.txt               # Python dependencies
@@ -95,10 +96,10 @@ All outputs are written to the `output/` directory.
 
 | Step | Module | Description |
 |------|--------|-------------|
-| 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from the Single-column profiling notebook to profile each column. Saves `output/profiling_report.csv`. |
+| 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from Cell 0 of the Single-column profiling notebook to profile each column. Then applies `clean_data` from Cell 1 of the same notebook: fills Facility Type nulls, drops Location/City/State, filters Zip codes, cleans License #, processes Inspection Type/Risk/Date, and extracts Violation Terms. Saves `output/profiling_report.csv`. |
 | 2 | `association_rules.py` | Mines association rules using the Apriori algorithm (`mlxtend`). Items are built from Facility Type, Risk, Results, and Violation Terms. Saves `output/association_rules.csv` (antecedents, consequents, support, confidence, lift). |
 | 3 | `fd_detection.py` | Uses `compute_fd_confidence` from the FD discovery notebook to detect functional dependencies across candidate LHS/RHS pairs. Reports exact and approximate FDs. Saves `output/fd_table.csv`. |
-| 4 | `fd_cleaning.py` | Orchestrates cleaning by delegating to: `clean_inspection()` from `inspection_cleaning.py`, `repair_fd()` from the FD discovery notebook, and `final_cleaning()` from `final_cleaning.py`. |
+| 4 | `fd_cleaning.py` | Applies FD-driven repair using `repair_fd()` from the FD discovery notebook, then runs `final_cleaning()` from `final_cleaning.py` for fallback imputation. |
 | 5 | `structuring.py` | Runs entity resolution (`restaurant_cleaning` from `restaurant_construction.py`), merges standardised attributes (`join_infection` from the original `main.py`), then splits into normalised `Restaurant` and `Inspections` tables with `Restaurant_ID` as a foreign key. |
 
 ---
