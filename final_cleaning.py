@@ -60,9 +60,12 @@ def final_cleaning(df):
     #  Fill AKA Name by DBA Name
     df['AKA Name'] = df['AKA Name'].fillna(df['DBA Name'])
 
-    #  Fill City / State
-    df['City'] = df['City'].fillna('Chicago')
-    df['State'] = df['State'].fillna('IL')
+    #  Fill City / State (if columns still exist — they may have been
+    #  dropped during single-column profiling cleaning)
+    if 'City' in df.columns:
+        df['City'] = df['City'].fillna('Chicago')
+    if 'State' in df.columns:
+        df['State'] = df['State'].fillna('IL')
 
     #  Delete records still with missing values on Longitude, Latitude, Zip
     initial_rows = len(df)
