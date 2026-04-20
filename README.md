@@ -57,8 +57,9 @@ Step 7 ── Data visualization
 
 ```
 .
+├── requirements.txt
 ├── pipeline_all_in_one.py         # All-in-one: every function in a single file
-├── Input file.csv
+├── Input file.csv                 # Your input file (e.g. Food_Inspections_20240215.csv)
 └── output/                        # Generated outputs (git-ignored except .gitkeep)
     ├── profiling_report.csv
     ├── association_rules.csv
