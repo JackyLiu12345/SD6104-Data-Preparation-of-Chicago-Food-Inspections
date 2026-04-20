@@ -1,0 +1,6 @@
+pandas
+numpy
+fuzzywuzzy
+python-Levenshtein
+mlxtend
+matplotlib
