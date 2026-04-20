@@ -57,23 +57,8 @@ Step 7 ── Data visualization
 
 ```
 .
-├── main.py                        # Pipeline orchestrator — run this
 ├── pipeline_all_in_one.py         # All-in-one: every function in a single file
-├── profiling.py                   # Step 1: profiling + data cleaning (both from notebook)
-├── association_rules.py           # Step 2: association rule mining (Apriori)
-├── fd_detection.py                # Step 3: FD detection (compute_fd_confidence from notebook)
-├── fd_cleaning.py                 # Step 4: FD repair + final fallback imputation
-├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
-├── restaurant_construction.py     # Entity resolution (Union-Find, fuzzy matching, Haversine)
-├── entity_aggregation.py          # Step 6: entity-level aggregation + high-risk ranking
-├── visualization.py               # Step 7: data visualization (white-themed charts)
-├── requirements.txt               # Python dependencies
-├── .gitignore
-├── notebooks/                     # Exploratory Jupyter notebooks
-│   ├── Single-column profiling.ipynb
-│   ├── Association rule mining.ipynb
-│   ├── FD discovery.ipynb
-│   └── INDs&structuring.ipynb
+├── Input file.csv
 └── output/                        # Generated outputs (git-ignored except .gitkeep)
     ├── profiling_report.csv
     ├── association_rules.csv
@@ -101,11 +86,6 @@ Put `Food_Inspections_20240215.csv` in the repository root (it is git-ignored).
 
 ### 3. Run the pipeline
 
-```bash
-# Modular version (imports from separate modules):
-python main.py
-
-# Or the all-in-one version (single file, no local imports):
 python pipeline_all_in_one.py
 ```
 
