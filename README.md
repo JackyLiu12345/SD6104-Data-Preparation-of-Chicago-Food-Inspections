@@ -19,6 +19,7 @@ Step 1 ── Single-column profiling + data cleaning
   ▼
 Step 2 ── Association rule mining
   │         Apriori on Facility Type, Risk, Results, Violation Terms
+  │         Top 50 rules by lift saved
   │         → output/association_rules.csv
   │
   ▼
@@ -33,9 +34,15 @@ Step 4 ── FD repair + final cleaning
   │
   ▼
 Step 5 ── Data structuring
-            entity resolution (fuzzy matching + Union-Find clustering)
-            → output/restaurant_table.csv   (one row per unique restaurant)
-            → output/inspections_table.csv  (one row per inspection, FK: Restaurant_ID)
+  │         entity resolution (fuzzy matching + Union-Find clustering)
+  │         → output/restaurant_table.csv   (one row per unique restaurant)
+  │         → output/inspections_table.csv  (one row per inspection, FK: Restaurant_ID)
+  │
+  ▼
+Step 6 ── Entity aggregation + high-risk ranking
+            aggregate by Entity_ID: pass/fail rates, violation stats, risk index
+            → output/entity_inspection_analysis.csv
+            → output/entity_high_risk_rank.csv
 ```
 
 ---
@@ -48,11 +55,10 @@ Step 5 ── Data structuring
 ├── profiling.py                   # Step 1: profiling + data cleaning (both from notebook)
 ├── association_rules.py           # Step 2: association rule mining (Apriori)
 ├── fd_detection.py                # Step 3: FD detection (compute_fd_confidence from notebook)
-├── fd_cleaning.py                 # Step 4: FD repair + final cleaning orchestrator
-├── inspection_cleaning.py         # Inspection-level cleaning (clean_inspection, from main branch)
-├── final_cleaning.py              # Final imputation & cleanup (final_cleaning, from main branch)
+├── fd_cleaning.py                 # Step 4: FD repair + final fallback imputation
 ├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
 ├── restaurant_construction.py     # Entity resolution (Union-Find, fuzzy matching, Haversine)
+├── entity_aggregation.py          # Step 6: entity-level aggregation + high-risk ranking
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
 ├── notebooks/                     # Exploratory Jupyter notebooks
@@ -65,7 +71,9 @@ Step 5 ── Data structuring
     ├── association_rules.csv
     ├── fd_table.csv
     ├── restaurant_table.csv
-    └── inspections_table.csv
+    ├── inspections_table.csv
+    ├── entity_inspection_analysis.csv
+    └── entity_high_risk_rank.csv
 ```
 
 ---
@@ -97,10 +105,11 @@ All outputs are written to the `output/` directory.
 | Step | Module | Description |
 |------|--------|-------------|
 | 1 | `profiling.py` | Uses `print_data_overview`, `print_column_summary`, `analyze_single_columns` from Cell 0 of the Single-column profiling notebook to profile each column. Then applies `clean_data` from Cell 1 of the same notebook: fills Facility Type nulls, drops Location/City/State, cleans Zip nulls, cleans License #, processes Inspection Type/Risk/Date, and extracts Violation Terms. Saves `output/profiling_report.csv`. |
-| 2 | `association_rules.py` | Mines association rules using the Apriori algorithm (`mlxtend`). Items are built from Facility Type, Risk, Results, and Violation Terms. Saves `output/association_rules.csv` (antecedents, consequents, support, confidence, lift). |
+| 2 | `association_rules.py` | Mines association rules using the Apriori algorithm (`mlxtend`). Items are built from Facility Type, Risk, Results, and Violation Terms. Only top 50 rules by lift are saved. Saves `output/association_rules.csv`. |
 | 3 | `fd_detection.py` | Uses `compute_fd_confidence` from the FD discovery notebook to detect functional dependencies across candidate LHS/RHS pairs. Reports exact and approximate FDs. Saves `output/fd_table.csv`. |
-| 4 | `fd_cleaning.py` | Applies FD-driven repair using `repair_fd()` from the FD discovery notebook, then runs `final_cleaning()` from `final_cleaning.py` for fallback imputation. |
+| 4 | `fd_cleaning.py` | Applies FD-driven repair using `repair_fd()` from the FD discovery notebook, then runs `final_cleaning()` for fallback imputation. |
 | 5 | `structuring.py` | Runs entity resolution (`restaurant_cleaning` from `restaurant_construction.py`), merges standardised attributes (`join_infection` from the original `main.py`), then splits into normalised `Restaurant` and `Inspections` tables with `Restaurant_ID` as a foreign key. |
+| 6 | `entity_aggregation.py` | Aggregates inspection data by Entity_ID: computes pass/fail rates, violation statistics, and a composite risk index. Produces a full entity summary and a top-100 high-risk ranking. |
 
 ---
 
@@ -110,10 +119,12 @@ All outputs are written to the `output/` directory.
 |------|-------------|
 | **Input** | `Food_Inspections_20240215.csv` — raw Chicago Food Inspections data (~250 k rows) |
 | **output/profiling_report.csv** | Per-column statistics for the raw dataset |
-| **output/association_rules.csv** | Discovered association rules with support / confidence / lift |
+| **output/association_rules.csv** | Top 50 association rules with support / confidence / lift |
 | **output/fd_table.csv** | Functional dependency table (LHS, RHS, accuracy, violation rate) |
 | **output/restaurant_table.csv** | Normalised restaurant dimension table with `Restaurant_ID` |
 | **output/inspections_table.csv** | Fact table of inspections referencing `Restaurant_ID` |
+| **output/entity_inspection_analysis.csv** | Full entity-level aggregation (pass/fail rates, risk index) |
+| **output/entity_high_risk_rank.csv** | Top-100 high-risk entities by risk index |
 
 ---
 

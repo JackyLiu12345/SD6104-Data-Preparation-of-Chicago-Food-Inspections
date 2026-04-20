@@ -3,11 +3,8 @@ fd_cleaning.py
 ==============
 FD-based data cleaning step.
 
-Delegates to the original main-branch modules and uses ``repair_fd``
-from the FD discovery notebook:
-
-  • FD-driven repair            → repair_fd (from FD discovery notebook)
-  • Final imputation & cleanup  → final_cleaning.final_cleaning
+Uses ``repair_fd`` from the FD discovery notebook for FD-driven repair,
+followed by fallback imputation (``final_cleaning``).
 
 Note: Inspection-level cleaning (Inspection Type, Date, Risk, Violations,
 Facility Type, Zip, License #) is handled upstream by ``clean_data()`` in
@@ -16,7 +13,6 @@ Facility Type, Zip, License #) is handled upstream by ``clean_data()`` in
 
 import pandas as pd
 
-from final_cleaning import final_cleaning
 from fd_detection import compute_fd_confidence
 
 
@@ -139,6 +135,93 @@ def _apply_fd_repair(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Final fallback imputation (formerly final_cleaning.py)
+# ---------------------------------------------------------------------------
+
+def final_cleaning(df):
+    """Fallback imputation & cleanup applied after FD repair.
+
+    Fills remaining nulls (Address/Zip by location, geo by Zip, Facility Type
+    by License, AKA Name by DBA Name, City/State defaults) and drops rows
+    still missing Latitude/Longitude/Zip.
+    """
+    df = df.copy()
+    if 'Location' in df.columns:
+        df = df.drop('Location', axis=1)
+
+    def fill_by_location_fast(df, group_cols, target_col):
+        def safe_mode(series):
+            mode_vals = series.mode()
+            if len(mode_vals) == 1 and (series == mode_vals[0]).sum() > 1:
+                return mode_vals[0]
+            return None
+
+        mode_series = df.groupby(group_cols)[target_col].transform(safe_mode)
+        mask = df[target_col].isna() & mode_series.notna()
+        df.loc[mask, target_col] = mode_series[mask]
+        return df
+
+    df = fill_by_location_fast(df, ['Latitude', 'Longitude'], 'Address')
+    df = fill_by_location_fast(df, ['Latitude', 'Longitude'], 'Zip')
+
+    def fill_geo_by_zip_fast(df):
+        from collections import Counter
+
+        def safe_mode_two(series1, series2):
+            combined = list(zip(series1, series2))
+            if not combined:
+                return None, None
+            counter = Counter(combined)
+            most_common = counter.most_common(1)[0]
+            if most_common[1] > 1:
+                return most_common[0][0], most_common[0][1]
+            return None, None
+
+        zip_geo = df.groupby('Zip', group_keys=False).apply(
+            lambda g: pd.Series(safe_mode_two(g['Latitude'], g['Longitude']), index=['Lat_mode', 'Lon_mode']),
+            include_groups=False
+        ).dropna()
+
+        for zip_val, row in zip_geo.iterrows():
+            mask = (df['Zip'] == zip_val) & (df['Latitude'].isna() | df['Longitude'].isna())
+            df.loc[mask, 'Latitude'] = df.loc[mask, 'Latitude'].fillna(row['Lat_mode'])
+            df.loc[mask, 'Longitude'] = df.loc[mask, 'Longitude'].fillna(row['Lon_mode'])
+        return df
+
+    df = fill_geo_by_zip_fast(df)
+
+    # Fill Facility Type by License and then fill Others
+    license_mode = df.groupby('License #')['Facility Type'].transform(
+        lambda x: x.mode().iloc[0] if len(x.mode()) == 1 and (x == x.mode().iloc[0]).sum() > 1 else None
+    )
+    mask = df['Facility Type'].isna() & license_mode.notna()
+    df.loc[mask, 'Facility Type'] = license_mode[mask]
+    df['Facility Type'] = df['Facility Type'].fillna('Others')
+
+    # Fill AKA Name by DBA Name
+    df['AKA Name'] = df['AKA Name'].fillna(df['DBA Name'])
+
+    # Fill City / State (if columns still exist — they may have been
+    # dropped during single-column profiling cleaning)
+    if 'City' in df.columns:
+        df['City'] = df['City'].fillna('Chicago')
+    if 'State' in df.columns:
+        df['State'] = df['State'].fillna('IL')
+
+    # Delete records still with missing values on Longitude, Latitude, Zip
+    initial_rows = len(df)
+    df = df.dropna(subset=['Latitude', 'Longitude', 'Zip'])
+    print(f"Delete records still with missing values on Longitude, Latitude, Zip: {initial_rows - len(df)} rows")
+
+    # Fill missing Violations and Violation Terms by '0'
+    df['Violations'] = df['Violations'].fillna('0')
+    df['Violation Terms'] = df['Violation Terms'].fillna('0')
+    if 'Entity_ID' in df.columns:
+        df.drop(['Entity_ID'], axis=1, inplace=True)
+    return df
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -147,7 +230,7 @@ def run_fd_cleaning(df: pd.DataFrame, fd_table: pd.DataFrame | None = None) -> p
     FD-based cleaning pipeline:
 
       1. FD-driven repair           (repair_fd from FD discovery notebook)
-      2. Fallback imputation        (final_cleaning from final_cleaning.py)
+      2. Fallback imputation        (final_cleaning)
 
     Note: Inspection-level cleaning (Inspection Type, Date, Risk, Violations,
     Facility Type, Zip, License #) is handled upstream by ``clean_data()``
