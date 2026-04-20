@@ -120,7 +120,7 @@ def run_structuring(
     df: pd.DataFrame,
     restaurant_output: str = "output/restaurant_table.csv",
     inspections_output: str = "output/inspections_table.csv",
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Extract the Restaurant and Inspections tables from the cleaned DataFrame.
 
@@ -134,7 +134,9 @@ def run_structuring(
 
     Returns
     -------
-    (restaurant_table, inspections_table) as DataFrames.
+    (restaurant_table, inspections_table, df_merged) as DataFrames.
+    ``df_merged`` is the inspection-level DataFrame with Entity_ID attached,
+    useful for downstream entity-level aggregation.
     """
     print("  Running entity resolution ...")
     restaurant_std = restaurant_cleaning(df)
@@ -162,4 +164,4 @@ def run_structuring(
     inspections_table.to_csv(inspections_output, index=False)
     print(f"  Inspections table saved to: {inspections_output}")
 
-    return restaurant_table, inspections_table
+    return restaurant_table, inspections_table, df_merged

@@ -54,6 +54,7 @@ def run_association_rules(
     min_support: float = 0.02,
     min_confidence: float = 0.3,
     output_path: str = "output/association_rules.csv",
+    top_n: int = 50,
 ) -> pd.DataFrame:
     """
     Mine association rules from *df* using the Apriori algorithm.
@@ -64,6 +65,8 @@ def run_association_rules(
     min_support   : Minimum support threshold (fraction of transactions).
     min_confidence: Minimum confidence threshold.
     output_path   : Where to save the discovered rules CSV.
+    top_n         : Number of top rules (by lift) to keep in the output.
+                    Set to 0 or None to keep all rules.
 
     Returns
     -------
@@ -93,6 +96,11 @@ def run_association_rules(
         cols = ["antecedents", "consequents", "support", "confidence", "lift"]
         rules = rules[cols]
         print(f"  Discovered {len(rules)} association rules.")
+
+    # Keep only the top N rules (by lift) if requested
+    if top_n and len(rules) > top_n:
+        rules = rules.head(top_n).reset_index(drop=True)
+        print(f"  Kept top {top_n} rules (by lift).")
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     rules.to_csv(output_path, index=False)

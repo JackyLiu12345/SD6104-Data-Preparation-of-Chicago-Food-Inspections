@@ -21,6 +21,8 @@ Pipeline
         4b. Final cleaning                 (final_cleaning)
     → Step 5: Data structuring            → output/restaurant_table.csv
                                           → output/inspections_table.csv
+    → Step 6: Entity aggregation          → output/entity_inspection_analysis.csv
+              + high-risk ranking          → output/entity_high_risk_rank.csv
 
 Usage
 -----
@@ -36,6 +38,7 @@ from association_rules import run_association_rules
 from fd_detection import run_fd_detection
 from fd_cleaning import run_fd_cleaning
 from structuring import run_structuring
+from entity_aggregation import run_entity_aggregation
 
 INPUT_FILE = "Food_Inspections_20240215.csv"
 
@@ -80,6 +83,7 @@ def main():
         min_support=0.02,
         min_confidence=0.3,
         output_path="output/association_rules.csv",
+        top_n=50,
     )
 
     # ------------------------------------------------------------------
@@ -109,10 +113,22 @@ def main():
     # Step 5: Data structuring (Restaurant + Inspections tables)
     # ------------------------------------------------------------------
     _step_header(5, "Data structuring (Restaurant + Inspections tables)")
-    restaurant_table, inspections_table = run_structuring(
+    restaurant_table, inspections_table, df_merged = run_structuring(
         df_clean,
         restaurant_output="output/restaurant_table.csv",
         inspections_output="output/inspections_table.csv",
+    )
+
+    # ------------------------------------------------------------------
+    # Step 6: Entity-level aggregation + high-risk ranking
+    # ------------------------------------------------------------------
+    _step_header(6, "Entity aggregation + high-risk ranking")
+    entity_df, high_risk_df = run_entity_aggregation(
+        df_merged,
+        entity_output="output/entity_inspection_analysis.csv",
+        risk_output="output/entity_high_risk_rank.csv",
+        min_inspections=5,
+        top_n=100,
     )
 
     # ------------------------------------------------------------------
@@ -126,6 +142,8 @@ def main():
     print(f"  FD table          : output/fd_table.csv")
     print(f"  Restaurant table  : output/restaurant_table.csv  ({len(restaurant_table):,} rows)")
     print(f"  Inspections table : output/inspections_table.csv ({len(inspections_table):,} rows)")
+    print(f"  Entity analysis   : output/entity_inspection_analysis.csv ({len(entity_df):,} rows)")
+    print(f"  High-risk ranking : output/entity_high_risk_rank.csv ({len(high_risk_df):,} rows)")
 
 
 if __name__ == "__main__":
