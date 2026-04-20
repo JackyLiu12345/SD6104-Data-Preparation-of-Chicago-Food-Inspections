@@ -113,6 +113,8 @@ def build_entity_aggregation(df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index()
 
     # --- Attribute aggregation (mode per entity) ---
+    # City may have been dropped during single-column profiling (Step 1),
+    # so it is conditionally included here.
     attr_agg = {"dba_name": ("DBA Name", mode_or_first), "facility_type": ("Facility Type", mode_or_first)}
     if "City" in data.columns:
         attr_agg["city"] = ("City", mode_or_first)
