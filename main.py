@@ -23,6 +23,7 @@ Pipeline
                                           → output/inspections_table.csv
     → Step 6: Entity aggregation          → output/entity_inspection_analysis.csv
               + high-risk ranking          → output/entity_high_risk_rank.csv
+    → Step 7: Data visualization          → output/*.png
 
 Usage
 -----
@@ -39,6 +40,7 @@ from fd_detection import run_fd_detection
 from fd_cleaning import run_fd_cleaning
 from structuring import run_structuring
 from entity_aggregation import run_entity_aggregation
+from visualization import run_visualization
 
 INPUT_FILE = "Food_Inspections_20240215.csv"
 
@@ -132,6 +134,12 @@ def main():
     )
 
     # ------------------------------------------------------------------
+    # Step 7: Data visualization
+    # ------------------------------------------------------------------
+    _step_header(7, "Data visualization")
+    run_visualization(df_clean, output_dir="output")
+
+    # ------------------------------------------------------------------
     # Summary
     # ------------------------------------------------------------------
     print("\n" + "=" * 60)
@@ -144,6 +152,7 @@ def main():
     print(f"  Inspections table : output/inspections_table.csv ({len(inspections_table):,} rows)")
     print(f"  Entity analysis   : output/entity_inspection_analysis.csv ({len(entity_df):,} rows)")
     print(f"  High-risk ranking : output/entity_high_risk_rank.csv ({len(high_risk_df):,} rows)")
+    print(f"  Visualizations    : output/*.png")
 
 
 if __name__ == "__main__":
