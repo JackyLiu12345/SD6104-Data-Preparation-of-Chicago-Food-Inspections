@@ -40,9 +40,15 @@ Step 5 ── Data structuring
   │
   ▼
 Step 6 ── Entity aggregation + high-risk ranking
-            aggregate by Entity_ID: pass/fail rates, violation stats, risk index
-            → output/entity_inspection_analysis.csv
-            → output/entity_high_risk_rank.csv
+  │         aggregate by Entity_ID: pass/fail rates, violation stats, risk index
+  │         → output/entity_inspection_analysis.csv
+  │         → output/entity_high_risk_rank.csv
+  │
+  ▼
+Step 7 ── Data visualization
+            white-themed charts: missing values, category distributions,
+            FD confidence ranking, FD violation counts
+            → output/*.png
 ```
 
 ---
@@ -52,6 +58,7 @@ Step 6 ── Entity aggregation + high-risk ranking
 ```
 .
 ├── main.py                        # Pipeline orchestrator — run this
+├── pipeline_all_in_one.py         # All-in-one: every function in a single file
 ├── profiling.py                   # Step 1: profiling + data cleaning (both from notebook)
 ├── association_rules.py           # Step 2: association rule mining (Apriori)
 ├── fd_detection.py                # Step 3: FD detection (compute_fd_confidence from notebook)
@@ -59,6 +66,7 @@ Step 6 ── Entity aggregation + high-risk ranking
 ├── structuring.py                 # Step 5: data structuring (Restaurant + Inspections tables)
 ├── restaurant_construction.py     # Entity resolution (Union-Find, fuzzy matching, Haversine)
 ├── entity_aggregation.py          # Step 6: entity-level aggregation + high-risk ranking
+├── visualization.py               # Step 7: data visualization (white-themed charts)
 ├── requirements.txt               # Python dependencies
 ├── .gitignore
 ├── notebooks/                     # Exploratory Jupyter notebooks
@@ -73,7 +81,8 @@ Step 6 ── Entity aggregation + high-risk ranking
     ├── restaurant_table.csv
     ├── inspections_table.csv
     ├── entity_inspection_analysis.csv
-    └── entity_high_risk_rank.csv
+    ├── entity_high_risk_rank.csv
+    └── *.png (visualization charts)
 ```
 
 ---
@@ -93,7 +102,11 @@ Put `Food_Inspections_20240215.csv` in the repository root (it is git-ignored).
 ### 3. Run the pipeline
 
 ```bash
+# Modular version (imports from separate modules):
 python main.py
+
+# Or the all-in-one version (single file, no local imports):
+python pipeline_all_in_one.py
 ```
 
 All outputs are written to the `output/` directory.
@@ -110,6 +123,7 @@ All outputs are written to the `output/` directory.
 | 4 | `fd_cleaning.py` | Applies FD-driven repair using `repair_fd()` from the FD discovery notebook, then runs `final_cleaning()` for fallback imputation. |
 | 5 | `structuring.py` | Runs entity resolution (`restaurant_cleaning` from `restaurant_construction.py`), merges standardised attributes (`join_infection` from the original `main.py`), then splits into normalised `Restaurant` and `Inspections` tables with `Restaurant_ID` as a foreign key. |
 | 6 | `entity_aggregation.py` | Aggregates inspection data by Entity_ID: computes pass/fail rates, violation statistics, and a composite risk index. Produces a full entity summary and a top-100 high-risk ranking. |
+| 7 | `visualization.py` | Generates white-themed charts: missing value percentages, category distributions (Results, Risk, Facility Type), FD confidence ranking, and FD violation counts. Saves PNG files to `output/`. |
 
 ---
 
@@ -125,6 +139,7 @@ All outputs are written to the `output/` directory.
 | **output/inspections_table.csv** | Fact table of inspections referencing `Restaurant_ID` |
 | **output/entity_inspection_analysis.csv** | Full entity-level aggregation (pass/fail rates, risk index) |
 | **output/entity_high_risk_rank.csv** | Top-100 high-risk entities by risk index |
+| **output/*.png** | Visualization charts (missing values, distributions, FD analysis) |
 
 ---
 
@@ -139,3 +154,4 @@ See `requirements.txt`.  Key packages:
 | `fuzzywuzzy` | Fuzzy string matching for entity resolution |
 | `python-Levenshtein` | Fast edit-distance computation (speeds up fuzzywuzzy) |
 | `mlxtend` | Apriori algorithm for association rule mining |
+| `matplotlib` | Data visualization (charts and plots) |
