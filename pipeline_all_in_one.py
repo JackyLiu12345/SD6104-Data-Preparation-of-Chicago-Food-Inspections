@@ -506,7 +506,6 @@ def _build_transactions(df: pd.DataFrame) -> list:
             raw = str(vt).strip()
             if raw.lower() == "nan":
                 continue
-            raw = str(vt).strip()
             # Stored as "1,3,14" or "['1','3','14']"
             if raw.startswith("["):
                 try:
@@ -1142,12 +1141,12 @@ def assign_entity_ids_to_prepared_df(prepared_agg_df, sim_matrices, threshold=0.
                 for orig_idx in group['_temp_idx']:
                     entity_id_list[orig_idx] = entity_id
             else:
-                print(f"警告: License {license_id} 没有相似度矩阵，但有 {n_nodes} 个节点，跳过")
+                print(f"Warning: License {license_id} has no similarity matrix but has {n_nodes} nodes; skipping.")
             continue
 
         mat = sim_matrices[license_id]
         if mat.shape[0] != len(group):
-            print(f"警告: License {license_id} 矩阵大小 {mat.shape[0]} 与记录数 {len(group)} 不一致，跳过")
+            print(f"Warning: License {license_id} matrix size {mat.shape[0]} does not match record count {len(group)}; skipping.")
             continue
 
         node_to_entity = cluster_by_similarity_matrix(mat, license_id, threshold)
@@ -1172,8 +1171,10 @@ def assign_entity_ids_to_prepared_df(prepared_agg_df, sim_matrices, threshold=0.
 def add_standardized_columns(df_with_entity,
                              entity_col='Entity_ID',
                              weight_col='cnt',
-                             attr_cols=['DBA Name', 'Facility Type', 'Zip', 'Latitude', 'Longitude'],
+                             attr_cols=None,
                              suffix='_std'):
+    if attr_cols is None:
+        attr_cols = ['DBA Name', 'Facility Type', 'Zip', 'Latitude', 'Longitude']
     df_out = df_with_entity.copy()
     idx_max = df_out.groupby(entity_col)[weight_col].idxmax()
     std_values = df_out.loc[idx_max, [entity_col] + attr_cols].copy()
@@ -1210,7 +1211,15 @@ def restaurant_cleaning(df):
     print(f'After add Entity_ID, the shape of Union_Key Table is {prepared_with_entity.shape}')
     restaurant = pd.concat([prepared_agg_df0, prepared_with_entity], axis=0)
     mask = restaurant['Entity_ID'].isna()
-    restaurant.loc[mask, 'Entity_ID'] = restaurant.loc[mask, 'License #'].apply(lambda x: f"{int(x)}_0")
+
+    def _safe_license_entity_id(x):
+        try:
+            return f"{int(x)}_0"
+        except (ValueError, TypeError):
+            print(f"Warning: could not cast License # {x!r} to int; using '{x}_0' as Entity_ID.")
+            return f"{x}_0"
+
+    restaurant.loc[mask, 'Entity_ID'] = restaurant.loc[mask, 'License #'].apply(_safe_license_entity_id)
     del mask
     restaurant_with_std = add_standardized_columns(restaurant,
                                                    entity_col='Entity_ID',
@@ -1645,6 +1654,9 @@ def apply_white_theme(ax):
 
 def plot_missing_value_percentage(df, output_dir="output"):
     """Bar chart of missing-value percentage for every column."""
+    if df is None or df.empty:
+        print("  plot_missing_value_percentage: DataFrame is empty; skipping.")
+        return pd.Series(dtype=float)
     missing_pct = (df.isna().mean() * 100).sort_values(ascending=True)
 
     fig, ax = plt.subplots(figsize=(10, 8), facecolor="white")
@@ -1671,6 +1683,9 @@ def plot_category_distribution(df, column, top_n=15, output_dir="output"):
         return None
 
     counts = df[column].fillna("MISSING").value_counts().head(top_n)
+    if counts.empty:
+        print(f"  plot_category_distribution: no data for column '{column}'; skipping.")
+        return counts
 
     fig, ax = plt.subplots(figsize=(10, 6), facecolor="white")
     ax.bar(counts.index.astype(str), counts.values)
@@ -1718,6 +1733,10 @@ def plot_fd_confidence_ranking(df, fd_list, output_dir="output"):
         conf = _compute_fd_confidence_for_viz(df, lhs, rhs)
         rows.append({"FD": f"{lhs} -> {rhs}", "Confidence": conf})
 
+    if not rows:
+        print("  plot_fd_confidence_ranking: no applicable FD pairs found in DataFrame; skipping.")
+        return pd.DataFrame(columns=["FD", "Confidence"])
+
     fd_conf_df = pd.DataFrame(rows).sort_values(by="Confidence", ascending=False)
 
     fig, ax = plt.subplots(figsize=(10, 6), facecolor="white")
@@ -1751,6 +1770,10 @@ def plot_fd_violation_counts(df, fd_list, output_dir="output"):
             "Violating Groups": violating_groups,
             "Total Groups": total_groups,
         })
+
+    if not rows:
+        print("  plot_fd_violation_counts: no applicable FD pairs found in DataFrame; skipping.")
+        return pd.DataFrame(columns=["FD", "Violating Groups", "Total Groups"])
 
     fd_violation_df = pd.DataFrame(rows).sort_values(by="Violating Groups", ascending=False)
 
@@ -1845,8 +1868,13 @@ def main():
         sys.exit(1)
 
     print("Loading raw data ...")
-    df_raw = pd.read_csv(INPUT_FILE, low_memory=False)
-    df_raw["License #"] = df_raw["License #"].fillna(0)
+    try:
+        df_raw = pd.read_csv(INPUT_FILE, low_memory=False)
+    except (OSError, pd.errors.ParserError) as exc:
+        print(f"[ERROR] Failed to read input CSV '{INPUT_FILE}': {exc}")
+        sys.exit(1)
+    if "License #" in df_raw.columns:
+        df_raw["License #"] = df_raw["License #"].fillna(0)
     print(f"Raw shape: {df_raw.shape[0]:,} rows × {df_raw.shape[1]} columns")
 
     # ------------------------------------------------------------------
