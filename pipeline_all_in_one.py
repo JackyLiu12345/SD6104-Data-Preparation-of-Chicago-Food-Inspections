@@ -1887,6 +1887,15 @@ def main():
     print(f"Raw shape: {df_raw.shape[0]:,} rows × {df_raw.shape[1]} columns")
 
     # ------------------------------------------------------------------
+    # Step 0b: Data visualization — BEFORE cleaning
+    #
+    # Plot the raw DataFrame so we can compare against the post-pipeline
+    # state and see the effect of the cleaning pipeline visually.
+    # ------------------------------------------------------------------
+    _step_header(0, "Data visualization — BEFORE cleaning")
+    run_visualization(df_raw, output_dir="output", pic_subdir="pic/before")
+
+    # ------------------------------------------------------------------
     # Step 1: Single-column profiling + data cleaning
     #
     # Both profiling and data cleaning come from the Single-column
@@ -1954,10 +1963,10 @@ def main():
     )
 
     # ------------------------------------------------------------------
-    # Step 7: Data visualization
+    # Step 7: Data visualization — AFTER cleaning
     # ------------------------------------------------------------------
-    _step_header(7, "Data visualization")
-    run_visualization(df_clean, output_dir="output")
+    _step_header(7, "Data visualization — AFTER cleaning")
+    run_visualization(df_clean, output_dir="output", pic_subdir="pic/after")
 
     # ------------------------------------------------------------------
     # Summary
@@ -1972,7 +1981,7 @@ def main():
     print(f"  Inspections table : output/inspections_table.csv ({len(inspections_table):,} rows)")
     print(f"  Entity analysis   : output/entity_inspection_analysis.csv ({len(entity_df):,} rows)")
     print(f"  High-risk ranking : output/entity_high_risk_rank.csv ({len(high_risk_df):,} rows)")
-    print(f"  Visualizations    : output/*.png")
+    print(f"  Visualizations    : output/pic/before/*.png, output/pic/after/*.png")
 
 
 if __name__ == "__main__":
