@@ -1668,6 +1668,7 @@ def plot_missing_value_percentage(df, output_dir="output"):
     ax.grid(axis="x", linestyle="--", alpha=0.5, color="gray")
 
     output_path = os.path.join(output_dir, "missing_value_percentage.png")
+    os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight",
                 facecolor="white", edgecolor="white", transparent=False)
@@ -1698,6 +1699,7 @@ def plot_category_distribution(df, column, top_n=15, output_dir="output"):
 
     safe_name = column.lower().replace(" ", "_").replace("#", "num")
     output_path = os.path.join(output_dir, f"category_distribution_{safe_name}.png")
+    os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight",
                 facecolor="white", edgecolor="white", transparent=False)
@@ -1750,6 +1752,7 @@ def plot_fd_confidence_ranking(df, fd_list, output_dir="output"):
     plt.xticks(rotation=30, ha="right")
 
     output_path = os.path.join(output_dir, "fd_confidence_ranking.png")
+    os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight",
                 facecolor="white", edgecolor="white", transparent=False)
@@ -1787,6 +1790,7 @@ def plot_fd_violation_counts(df, fd_list, output_dir="output"):
     plt.xticks(rotation=30, ha="right")
 
     output_path = os.path.join(output_dir, "fd_violation_counts.png")
+    os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches="tight",
                 facecolor="white", edgecolor="white", transparent=False)
@@ -1808,9 +1812,12 @@ _VIZ_FD_LIST = [
 ]
 
 
-def run_visualization(df, output_dir="output"):
+def run_visualization(df, output_dir="output", pic_subdir="pic"):
     """
     Generate all standard visualizations for the cleaned DataFrame.
+
+    All PNGs are written into ``<output_dir>/<pic_subdir>/`` (default
+    ``output/pic/``) so picture artefacts are kept separate from CSVs.
 
     Produces:
       • missing_value_percentage.png
@@ -1822,10 +1829,12 @@ def run_visualization(df, output_dir="output"):
 
     Parameters
     ----------
-    df         : Cleaned inspection DataFrame.
-    output_dir : Directory to save PNG files into.
+    df          : Cleaned inspection DataFrame.
+    output_dir  : Root output directory.
+    pic_subdir  : Sub-directory (under ``output_dir``) for PNG files.
     """
-    os.makedirs(output_dir, exist_ok=True)
+    pic_dir = os.path.join(output_dir, pic_subdir) if pic_subdir else output_dir
+    os.makedirs(pic_dir, exist_ok=True)
 
     # Normalise text columns for consistent labels
     text_cols = ["DBA Name", "AKA Name", "Address", "Facility Type",
@@ -1837,14 +1846,14 @@ def run_visualization(df, output_dir="output"):
     if "Zip" in viz_df.columns:
         viz_df["Zip"] = pd.to_numeric(viz_df["Zip"], errors="coerce")
 
-    plot_missing_value_percentage(viz_df, output_dir)
-    plot_category_distribution(viz_df, "Results", top_n=10, output_dir=output_dir)
-    plot_category_distribution(viz_df, "Risk", top_n=10, output_dir=output_dir)
-    plot_category_distribution(viz_df, "Facility Type", top_n=15, output_dir=output_dir)
-    plot_fd_confidence_ranking(viz_df, _VIZ_FD_LIST, output_dir=output_dir)
-    plot_fd_violation_counts(viz_df, _VIZ_FD_LIST, output_dir=output_dir)
+    plot_missing_value_percentage(viz_df, pic_dir)
+    plot_category_distribution(viz_df, "Results", top_n=10, output_dir=pic_dir)
+    plot_category_distribution(viz_df, "Risk", top_n=10, output_dir=pic_dir)
+    plot_category_distribution(viz_df, "Facility Type", top_n=15, output_dir=pic_dir)
+    plot_fd_confidence_ranking(viz_df, _VIZ_FD_LIST, output_dir=pic_dir)
+    plot_fd_violation_counts(viz_df, _VIZ_FD_LIST, output_dir=pic_dir)
 
-    print("  All visualization charts generated.")
+    print(f"  All visualization charts generated in {pic_dir}/")
 
 
 # ###################################################################
